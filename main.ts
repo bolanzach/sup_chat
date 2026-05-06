@@ -1,3 +1,5 @@
+import { extract } from "jsr:@std/front-matter/yaml";
+
 type ToolCall = {
   id: string;
   type: "function";
@@ -51,7 +53,7 @@ const REGISTERED_TOOLS: RegisteredTool[] = [
     type: "function",
     function: {
       name: "make_directory",
-      description: "Creates a new empty directory on the local filesystem.",
+      description: "Creates a new empty directory on the local filesystem. Prefer this over bash mkdir.",
       parameters: {
         type: "object",
         properties: {
@@ -69,7 +71,7 @@ const REGISTERED_TOOLS: RegisteredTool[] = [
     type: "function",
     function: {
       name: "list_files",
-      description: "Lists all files and directories in the path.",
+      description: "Lists all files and directories in the path. Prefer this over bash ls.",
       parameters: {
         type: "object",
         properties: {
@@ -78,15 +80,15 @@ const REGISTERED_TOOLS: RegisteredTool[] = [
       },
     },
     handler: async (input: unknown) => {
-      const { path } = input as { path: string };
-      const directoryPath = `./${path ?? ""}`;
-      const files: string[] = [];
+      const { path } = input as { path?: string };
+      const directoryPath = !path || path.trim() === "" ? "." : path;
+      const entries: string[] = [];
       for await (const entry of Deno.readDir(directoryPath)) {
         if (entry.isFile || entry.isDirectory) {
-          files.push(entry.name);
+          entries.push(entry.isDirectory ? `${entry.name}/` : entry.name);
         }
       }
-      return { status: "success", content: `Files in ${directoryPath}: ${files.join(", ")}` };
+      return { status: "success", content: `Files in ${directoryPath}: ${entries.join(", ")}` };
     },
   },
   {
@@ -146,7 +148,7 @@ const REGISTERED_TOOLS: RegisteredTool[] = [
       parameters: {
         type: "object",
         properties: {
-          agentType: { type: "string", description: "Which agent to spawn.", enum: ["PLAN", "EXTRACT_EXTERNAL_RESOURCES"] },
+          agentType: { type: "string", description: "Which agent to spawn.", enum: ["PLAN", "EXTRACT_EXTERNAL_RESOURCES", "GIT"] },
           prompt: { type: "string", description: "The instructions to send to the agent." },
         },
       },
@@ -173,31 +175,42 @@ const REGISTERED_TOOLS: RegisteredTool[] = [
   },
 ];
 
+type Agent = { name: string; description: string; body: string };
+
+async function loadAgent(name: string): Promise<Agent> {
+  const content = await Deno.readTextFile(`./agents/${name}.md`);
+  const { attrs, body } = extract<{ name: string; description: string }>(content);
+  return { name: attrs.name, description: attrs.description, body: body.trim() };
+}
+
+const PLAN_AGENT = await loadAgent("plan");
+const EXTRACT_AGENT = await loadAgent("extract_external_resources");
+const GIT_AGENT = await loadAgent("git");
+
 const AGENTS = {
   PLAN: {
-    description: "Use this agent to create and execute plans. It should be used when the user asks for help with a complex task and you need to create a plan to complete the task.",
+    description: PLAN_AGENT.description,
     agent: function (prompt: string) {
       const agentProvider = new OllamaProvider("gemma4-agent");
-      const systemPrompt = `You are a helpful and precise assistant for helping the user complete their task. You create detailed plans for how to complete the user's task and then execute those plans step by step, checking for success at each step. If a step fails, you stop and report the error instead of moving on to the next step. Always think step by step.`
-      return agent(agentProvider, this.tools, [{ role: "system", content: systemPrompt }], prompt);
+      return agent(agentProvider, this.tools, [{ role: "system", content: PLAN_AGENT.body }], prompt);
     },
     tools: REGISTERED_TOOLS,
   },
   EXTRACT_EXTERNAL_RESOURCES: {
-    description: "Use this agent to pull out relevant files mentioned in the user's prompt that can be used for context in another agent.",
+    description: EXTRACT_AGENT.description,
     agent: function (prompt: string) {
       const agentProvider = new OllamaProvider("gemma4-agent");
-      const systemPrompt = `Your only job is to gather file context for another agent. You must call tools — never reply with text alone.
-
-Procedure:
-1. If the user names a file path, call read_file on it directly.
-2. If they mention something vague (e.g. "the auth code", "the agent"), call list_files first to find candidates, then read_file on the most likely match.
-3. When done gathering, output the file contents wrapped as: <file path="X">...contents...</file>. One block per file. If nothing applies, output exactly: NONE.
-
-Do not summarize. Do not explain. Do not ask questions. Output only file blocks or NONE.`;
-      return agent(agentProvider, this.tools, [{ role: "system", content: systemPrompt }], prompt);
+      return agent(agentProvider, this.tools, [{ role: "system", content: EXTRACT_AGENT.body }], prompt);
     },
     tools: REGISTERED_TOOLS.filter((t) => ["list_files", "read_file"].includes(t.function.name)),
+  },
+  GIT: {
+    description: GIT_AGENT.description,
+    agent: function (prompt: string) {
+      const agentProvider = new OllamaProvider("gemma4-agent");
+      return agent(agentProvider, this.tools, [{ role: "system", content: GIT_AGENT.body }], prompt);
+    },
+    tools: REGISTERED_TOOLS.filter((t) => ["bash", "read_file", "list_files"].includes(t.function.name)),
   },
 }
 
@@ -285,11 +298,19 @@ async function agent(provider: Provider, tools: RegisteredTool[], existingMessag
 async function cli() {
   let mode: '?' | '>' = '>';
   const provider = new OllamaProvider("gemma4-agent");
+
+  const currentDirContents: string[] = []
+  for await (const entry of Deno.readDir(".")) {
+    if (entry.isFile || entry.isDirectory) {
+      currentDirContents.push(entry.isDirectory ? `${entry.name}/` : entry.name);
+    }
+  }
+
   let messages: Message[] = [{
     role: "system",
     content:
       `You are a highly skilled and knowledgeable principal software engineer whose goal is to assist the user with their work.
-The current date is ${new Date().toLocaleDateString()}. The current working directory is: ${Deno.cwd()}
+The current date is ${new Date().toLocaleDateString()}. Operating system details: ${JSON.stringify(Deno.build)}. The current working directory is: ${Deno.cwd()} and its contents is: ${currentDirContents.join(", ")}
 You can not do anything that would cause harm to the user's system or data. Always ask before executing a command that could be destructive.
 Think carefully step by step. If you don't know the answer to a question, say you don't know instead of making something up.
 Before responding you must consider using the **spawn_agent** tool to create specialized agent(s) that will help you respond to the user. Use multiple agents if necessary. The available agents are:

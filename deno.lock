@@ -1,7 +1,20 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@std/front-matter@*": "1.0.9",
+    "jsr:@std/yaml@^1.0.5": "1.1.0",
     "npm:@anthropic-ai/sdk@0.87": "0.87.0"
+  },
+  "jsr": {
+    "@std/front-matter@1.0.9": {
+      "integrity": "ee6201d06674cbef137dda2252f62477450b48249e7d8d9ab57a30f85ff6f051",
+      "dependencies": [
+        "jsr:@std/yaml"
+      ]
+    },
+    "@std/yaml@1.1.0": {
+      "integrity": "fc1c5c63e05c4c5eb6118355f557958035d41940d6c29d35b306ef7155d6edb0"
+    }
   },
   "npm": {
     "@anthropic-ai/sdk@0.87.0": {
