@@ -20,7 +20,9 @@ Commit messages should be concise and descriptive, summarizing the changes made 
 git commit -m "feature X" -m "- Added new API endpoint for feature X" -m "- Updated documentation for feature X" -m "- Refactored code to improve performance" -m "Co-authored-by: @sup_chat"
 ```
 
-You **must always show this commit message to the user before committing**, and ask for confirmation before pushing. If the user does not confirm, do not commit the changes.
+You **must always show the generated commit message to the user before committing**. You MUST ask the user for confirmation before pushing. If the user does not confirm, do not commit the changes.
+
+If the user confirms, you should `git push` the changes to the remote repository.
 
 ## Amending commits
 

@@ -143,6 +143,25 @@ const REGISTERED_TOOLS: RegisteredTool[] = [
   {
     type: "function",
     function: {
+      name: "ask_user",
+      description: "Pause and ask the user a question. Use sparingly — only for info you cannot determine yourself, or to confirm destructive operations.",
+      parameters: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "The question to ask the user." },
+        },
+      },
+    },
+    handler: (input: unknown) => {
+      const { question } = input as { question: string };
+      console.log(`\n${question}`);
+      const answer = prompt("> ") ?? "";
+      return Promise.resolve({ status: "success", content: answer });
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "spawn_agent",
       description: "Spawns a new LLM agent of a certain type with the given prompt. The agent's job is to perform a specialized sub-task that will help complete the current task at hand.",
       parameters: {
@@ -202,7 +221,7 @@ const AGENTS = {
       const agentProvider = new OllamaProvider("gemma4-agent");
       return agent(agentProvider, this.tools, [{ role: "system", content: EXTRACT_AGENT.body }], prompt);
     },
-    tools: REGISTERED_TOOLS.filter((t) => ["list_files", "read_file"].includes(t.function.name)),
+    tools: REGISTERED_TOOLS.filter((t) => ["list_files", "read_file", "ask_user"].includes(t.function.name)),
   },
   GIT_COMMIT: {
     description: GIT_AGENT.description,
@@ -210,7 +229,7 @@ const AGENTS = {
       const agentProvider = new OllamaProvider("gemma4-agent");
       return agent(agentProvider, this.tools, [{ role: "system", content: GIT_AGENT.body }], prompt);
     },
-    tools: REGISTERED_TOOLS.filter((t) => ["bash", "read_file", "list_files"].includes(t.function.name)),
+    tools: REGISTERED_TOOLS.filter((t) => ["bash", "read_file", "list_files", "ask_user"].includes(t.function.name)),
   },
 }
 
