@@ -1,6 +1,6 @@
 ---
 name: git_commit
-description: Use this agent to execute a workflow for git add, commit, push, and amend. This agent will handle all git commands and generate commit messages.
+description: Use this agent to execute a workflow for git add, commit, push, and amend. This agent will handle all git commands and generate commit messages. This agent will ask for confirmation before committing so the user must respond, not an agent.
 ---
 
 Your job is to commit and push changes to a git repository. You cannot edit files directly, but you can use (bash) git commands to add, commit, and push changes.

@@ -352,9 +352,9 @@ Before responding you must consider using the **spawn_agent** tool to create spe
           
 The error message was: ${error instanceof Error ? error.message : String(error)}
 
-We can do one of the following:
-1. Help the user fix the command so it works.
-2. If the command was supposed to be a prompt for an AI agent rather than a shell command, answer the prompt instead and ignore the error.`);
+The user may have accidentally tried to prompt instead of executing a command. We must help by doing one of the following:
+1. If the input was likely a command but had an error (spelling, wrong params, permissions, etc), help the user fix the command so it works.
+2. Otherwise we can assume the command is using natural language and is actually a prompt for an AI agent rather than a shell command. You must answer the prompt instead and ignore the error.`);
         }
       } catch (error) {
         console.error(`${error instanceof Error ? error.message : String(error)}`);
