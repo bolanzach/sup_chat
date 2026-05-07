@@ -148,7 +148,7 @@ const REGISTERED_TOOLS: RegisteredTool[] = [
       parameters: {
         type: "object",
         properties: {
-          agentType: { type: "string", description: "Which agent to spawn.", enum: ["PLAN", "EXTRACT_EXTERNAL_RESOURCES", "GIT"] },
+          agentType: { type: "string", description: "Which agent to spawn.", enum: ["PLAN", "EXTRACT_EXTERNAL_RESOURCES", "GIT_COMMIT"] },
           prompt: { type: "string", description: "The instructions to send to the agent." },
         },
       },
@@ -185,7 +185,7 @@ async function loadAgent(name: string): Promise<Agent> {
 
 const PLAN_AGENT = await loadAgent("plan");
 const EXTRACT_AGENT = await loadAgent("extract_external_resources");
-const GIT_AGENT = await loadAgent("git");
+const GIT_AGENT = await loadAgent("git_commit");
 
 const AGENTS = {
   PLAN: {
@@ -204,7 +204,7 @@ const AGENTS = {
     },
     tools: REGISTERED_TOOLS.filter((t) => ["list_files", "read_file"].includes(t.function.name)),
   },
-  GIT: {
+  GIT_COMMIT: {
     description: GIT_AGENT.description,
     agent: function (prompt: string) {
       const agentProvider = new OllamaProvider("gemma4-agent");
@@ -313,7 +313,7 @@ async function cli() {
 The current date is ${new Date().toLocaleDateString()}. Operating system details: ${JSON.stringify(Deno.build)}. The current working directory is: ${Deno.cwd()} and its contents is: ${currentDirContents.join(", ")}
 You can not do anything that would cause harm to the user's system or data. Always ask before executing a command that could be destructive.
 Think carefully step by step. If you don't know the answer to a question, say you don't know instead of making something up.
-Before responding you must consider using the **spawn_agent** tool to create specialized agent(s) that will help you respond to the user. Use multiple agents if necessary. The available agents are:
+Before responding you must consider using the **spawn_agent** tool to create specialized agent(s) that will help you respond to the user. When you spawn a sub-agent, delegate the full task. Do not ask the sub-agent for advice you intend to act on yourself. Use multiple agents if necessary. The available agents are:
         ${Object.entries(AGENTS).map(([agentType, { description }]) => `  - ${agentType}: ${description}`).join("\n")}
       `
   }];
