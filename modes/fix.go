@@ -8,9 +8,10 @@ import (
 	"sup_chat/context"
 )
 
-const fixSystemPrompt = `You are a terminal assistant. A shell command failed. Provide a concise diagnosis and the corrected command or fix.
+const fixSystemPrompt = `You are a terminal assistant. A shell command failed. The user's recent terminal session is included for context, but your job is to diagnose and fix the LAST failed command only.
 
 Rules:
+- Focus on the failed command. Use session history only if it helps explain why it failed.
 - Be brief. 2-4 sentences max for explanation.
 - If the fix is a command, put it on its own line prefixed with "Run: "
 - No markdown formatting. Plain text only.
@@ -25,7 +26,7 @@ func Fix(cmd, output, cwd string) error {
 	}
 
 	ctx := context.Detect(cwd)
-	userMsg := fmt.Sprintf("%s\n\nFailed command: %s\nOutput/Error:\n%s", ctx, cmd, output)
+	userMsg := fmt.Sprintf("%s\n\nFailed command: %s\n\nRecent terminal session (including command output):\n%s", ctx, cmd, output)
 
 	color := os.Getenv("NO_COLOR") == ""
 	printSeparator(color, true)

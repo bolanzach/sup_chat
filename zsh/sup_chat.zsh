@@ -39,6 +39,7 @@ _sup_chat_preexec() {
 
   SUP_CHAT_SKIP=0
   SUP_CHAT_LAST_CMD="$cmd"
+  # shellcheck disable=SC2300
   SUP_CHAT_CMD_START_LINE=${$(wc -l < "$SUP_CHAT_LOG" 2>/dev/null)// /}
   SUP_CHAT_CMD_START_LINE=${SUP_CHAT_CMD_START_LINE:-0}
 }
@@ -56,13 +57,15 @@ _sup_chat_precmd() {
   [[ $SUP_CHAT_SKIP -eq 1 ]] && return
 
   # Extract output to a temp file (avoids null bytes breaking shell variables)
+  # Include 50 lines before the command for recent session context
   local output_file="/tmp/sup_chat-output-$$.tmp"
   if [[ -f "$SUP_CHAT_LOG" ]]; then
-    tail -n +"$SUP_CHAT_CMD_START_LINE" "$SUP_CHAT_LOG" 2>/dev/null | \
+    local context_start=$(( SUP_CHAT_CMD_START_LINE > 50 ? SUP_CHAT_CMD_START_LINE - 50 : 1 ))
+    tail -n +"$context_start" "$SUP_CHAT_LOG" 2>/dev/null | \
       LC_ALL=C tr -d '\000' | \
       sed $'s/\x1b[][()#;?]*[0-9;]*[a-zA-Z@^_`{|}~]//g' | \
       tr -d '\r' | \
-      head -c 4000 > "$output_file"
+      head -c 32768 > "$output_file"
   else
     touch "$output_file"
   fi
