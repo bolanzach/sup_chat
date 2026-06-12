@@ -17,6 +17,7 @@ fi
 typeset -g SUP_CHAT_LAST_CMD=""
 typeset -g SUP_CHAT_CMD_START_LINE=0
 typeset -g SUP_CHAT_SKIP=0
+typeset -g SUP_CHAT_LAST_EXIT=0
 
 # --- preexec: runs before each command ---
 _sup_chat_preexec() {
@@ -38,35 +39,49 @@ _sup_chat_preexec() {
 
   SUP_CHAT_SKIP=0
   SUP_CHAT_LAST_CMD="$cmd"
-  SUP_CHAT_CMD_START_LINE=$(wc -l < "$SUP_CHAT_LOG" 2>/dev/null || echo 0)
+  SUP_CHAT_CMD_START_LINE=${$(wc -l < "$SUP_CHAT_LOG" 2>/dev/null)// /}
+  SUP_CHAT_CMD_START_LINE=${SUP_CHAT_CMD_START_LINE:-0}
 }
 
-# --- precmd: runs before each prompt ---
-_sup_chat_precmd() {
-  local exit_code=$?
+# --- Capture exit code before any other precmd hooks can clobber it ---
+_sup_chat_save_exit() {
+  SUP_CHAT_LAST_EXIT=$?
+}
 
+# --- precmd: runs after _sup_chat_save_exit ---
+_sup_chat_precmd() {
   # Nothing to do on success, empty cmd, or opt-out
-  [[ $exit_code -eq 0 ]] && return
+  [[ $SUP_CHAT_LAST_EXIT -eq 0 ]] && return
   [[ -z "$SUP_CHAT_LAST_CMD" ]] && return
   [[ $SUP_CHAT_SKIP -eq 1 ]] && return
 
-  # Extract output since command started
-  local output=""
+  # Extract output to a temp file (avoids null bytes breaking shell variables)
+  local output_file="/tmp/sup_chat-output-$$.tmp"
   if [[ -f "$SUP_CHAT_LOG" ]]; then
-    output=$(tail -n +"$SUP_CHAT_CMD_START_LINE" "$SUP_CHAT_LOG" 2>/dev/null | \
-             col -b 2>/dev/null | \
-             head -c 4000)
+    tail -n +"$SUP_CHAT_CMD_START_LINE" "$SUP_CHAT_LOG" 2>/dev/null | \
+      LC_ALL=C tr -d '\000' | \
+      sed $'s/\x1b[][()#;?]*[0-9;]*[a-zA-Z@^_`{|}~]//g' | \
+      tr -d '\r' | \
+      head -c 4000 > "$output_file"
+  else
+    touch "$output_file"
   fi
 
   sup_chat fix \
     --cmd "$SUP_CHAT_LAST_CMD" \
-    --output "$output" \
+    --output-file "$output_file" \
     --cwd "$PWD"
+
+  rm -f "$output_file"
 
   SUP_CHAT_LAST_CMD=""
 }
 
 # --- Register hooks ---
+# _sup_chat_save_exit must be first precmd to capture $? before other hooks clobber it
 autoload -Uz add-zsh-hook
 add-zsh-hook preexec _sup_chat_preexec
+add-zsh-hook -d precmd _sup_chat_save_exit 2>/dev/null
+add-zsh-hook -d precmd _sup_chat_precmd 2>/dev/null
+precmd_functions=(_sup_chat_save_exit $precmd_functions)
 add-zsh-hook precmd _sup_chat_precmd

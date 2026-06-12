@@ -19,6 +19,7 @@ func main() {
 		fixCmd := flag.NewFlagSet("fix", flag.ExitOnError)
 		cmd := fixCmd.String("cmd", "", "the command that failed")
 		output := fixCmd.String("output", "", "stdout/stderr from the failed command")
+		outputFile := fixCmd.String("output-file", "", "file containing stdout/stderr")
 		cwd := fixCmd.String("cwd", ".", "working directory")
 		fixCmd.Parse(os.Args[2:])
 
@@ -26,7 +27,14 @@ func main() {
 			fmt.Fprintln(os.Stderr, "error: --cmd is required")
 			os.Exit(1)
 		}
-		if err := modes.Fix(*cmd, *output, *cwd); err != nil {
+		cmdOutput := *output
+		if *outputFile != "" {
+			data, err := os.ReadFile(*outputFile)
+			if err == nil {
+				cmdOutput = string(data)
+			}
+		}
+		if err := modes.Fix(*cmd, cmdOutput, *cwd); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
